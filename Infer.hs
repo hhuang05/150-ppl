@@ -48,11 +48,14 @@ choose_weight_law p left right =
 module Infer where
 import Data.List
 
+-- Modifying this from Jayme's code
+type Probability = Float
+
 -- Formal representation of Probability distribution
 -- Taken directly from Karl's code
-data P a = P [(a,Float)] deriving( Show )
+data P a = P [(a, Probability)] deriving( Show, Eq )
 
--- Constructors
+----------------- Constructors ---------------------
 certainly :: a -> P a
 certainly xs = P [(xs, 1.0)]
 
@@ -62,8 +65,36 @@ equally xs =
              (length xs) 
              ((/) 1.0 (realToFrac (length xs)))))
 
-weightedly :: [(a, Float)] -> P a
-weightedly xs = P xs
+normweighted :: (Real w) => [(w, a)] -> P a
+-- ^ Takes a weighted combination of 'a' and produces a
+-- normalized probability distribution based on the weights
+normweighted xs = 
+    let denom = realToFrac $ sum (map fst xs)
+        probs = map (/ denom) (map realToFrac (map fst xs))
+        as = map snd xs
+    in 
+      P (zip as probs)
+
+--------------- Observers --------------------------
+outcomeProb :: (Eq a) => P a -> a -> Probability 
+-- ^ probability of an outcome from the distribution on 'a'
+-- Currently O(n) access time
+-- can probably use a hash table to get O(1) access time
+outcomeProb (P dist) out = checkNil (P dist)
+    where checkNil (P []) = 0
+          checkNil (P (y:_)) = 
+              let a = [x | x <- dist, (fst x) == out]
+              in 
+                -- In case outcome is not in the set
+                case a of [] -> 0.0
+                          (y:_) -> snd $ head a
+    
+eventProb :: (Eq a) => (a -> Bool) -> P a -> Probability 
+-- ^ probability of an Event, which matches the given
+-- predicate
+eventProb pred (P dist) = checkNil (P dist)
+    where checkNil (P []) = 0
+          checkNil (P (y:_)) = sum [snd x | x <- dist, pred (fst x)]
 
 {-
 -- Part (B)
