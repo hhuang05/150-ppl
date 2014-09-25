@@ -1,33 +1,71 @@
+{-
+  Author: Moses Huang, based on code originally written by Karl Cronberg
+
+
+-- `F a` is a probability distribution, with Finite support, over values of type a
+------------ constructors ------------
+certainly :: a -> F a -- ^ `certainly a` is a with 100% probability
+equally :: [a] -> F a -- ^ Value `a` occurs in `equally as` in exact
+ -- proportion to the number of times `a` appears
+ -- in `as`
+weightedly :: Real w => [(w, a)] -> F a
+ -- ^ Produces a distribution of a's with the given relative weights
+ -- of type w. Weights must be nonnegative but needn't sum to 1.
+fchoose' :: Probability -> F a -> F a -> F a
+fchoose :: Probability -> a -> a -> F a
+ -- `choose p left right` mixes two values (or two distributions),
+ -- taking the left with probability p and right with probability 1-p.
+------------ transformers -----------------------
+pmap :: (a -> b) -> F a -> F b
+pfilter :: (a -> Bool) -> F a -> F a -- ^ conditional probability
+pfilterMap :: (a -> Maybe b) -> F a -> F b
+pfilterMap f = pmap fromJust . pfilter isJust . pmap f
+------------ combining forms ----------------------
+bindx :: F a -> (a -> F b) -> F (a, b)
+ -- `bindx d k` produces a joint distribution of a's and b's where
+ -- the distribution of b's for any given a is given by `k a`.
+------------- observers ------------------------- 
+vprob :: Eq a => F a -> a -> Probability -- ^ probability of seeing a value
+prob :: Eq a => (a -> Bool) -> F a -> Probability 
+ -- ^ probability of seeing a value that matches the given predicate
+expected :: (a -> Double) -> F a -> Double
+ -- ^ the expected value of the given function
+fsupport :: F a -> [a]
+ -- ^ list including every value of type a that has nonzero probability
+
+byLikelihood :: Ord a => F a -> [(Probability, a)]
+  -- ^ list of all possibilities ordered by decreasing probabilities.
+  -- No value of type a appears more than once in the list.
+ 
+-- variance is left as an exercise for the reader
+----------- Algebraic laws ------------------------
+choose_weight_law :: Eq a => Probability -> a -> a -> Bool
+choose_weight_law p left right =
+ fchoose p left right == weightedly [(p, left), (1-p, right)]
+--------------------------------------------------------------------------
+-}
+
 module Infer where
 import Data.List
 
--- Data types
-data D = D Int deriving( Show )
-instance Eq D where D x == D y = x == y
+-- Formal representation of Probability distribution
+-- Taken directly from Karl's code
+data P a = P [(a,Float)] deriving( Show )
 
--- An unordered pair of dice (order doesn't matter for comparison)
-data Pair = Pair D D deriving( Show )
-instance Eq Pair where Pair d1 d2 == Pair d3 d4 = (d1 == d3 && d2 == d4) || (d1 == d4 && d2 == d3)
+-- Constructors
+certainly :: a -> P a
+certainly xs = P [(xs, 1.0)]
 
-data P a =  
-    SingleDie D
-  | PDist [(a,Float)]
-  | TwoDie { d1 :: D, d2 :: D }
-  deriving( Show )
-
-newtype Bag = Bag [(Int,D)] deriving( Show )
-
--- Macros
-rTF :: (Real a, Fractional b) => a -> b
-rTF a = realToFrac a
-
--- Part (A)
 equally :: [a] -> P a
-equally xs = PDist
-  (zip
-    xs
-    (replicate (length xs) ((/) 1.0 (realToFrac (length xs)))))
+equally xs = 
+  P (zip xs (replicate 
+             (length xs) 
+             ((/) 1.0 (realToFrac (length xs)))))
 
+weightedly :: [(a, Float)] -> P a
+weightedly xs = P xs
+
+{-
 -- Part (B)
 throw :: D -> P Int
 throw d = (SingleDie d)
@@ -117,3 +155,4 @@ RTally (D d1) (D d2) tallies trials bag =
 --RTally d1 d2 tallies trials =
 --  let pdice = (draw2 d1 d2 bag) -}
 
+-}
