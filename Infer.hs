@@ -4,13 +4,7 @@
 
 -- `F a` is a probability distribution, with Finite support, over values of type a
 ------------ constructors ------------
-certainly :: a -> F a -- ^ `certainly a` is a with 100% probability
-equally :: [a] -> F a -- ^ Value `a` occurs in `equally as` in exact
- -- proportion to the number of times `a` appears
- -- in `as`
-weightedly :: Real w => [(w, a)] -> F a
- -- ^ Produces a distribution of a's with the given relative weights
- -- of type w. Weights must be nonnegative but needn't sum to 1.
+
 fchoose' :: Probability -> F a -> F a -> F a
 fchoose :: Probability -> a -> a -> F a
  -- `choose p left right` mixes two values (or two distributions),
@@ -25,13 +19,7 @@ bindx :: F a -> (a -> F b) -> F (a, b)
  -- `bindx d k` produces a joint distribution of a's and b's where
  -- the distribution of b's for any given a is given by `k a`.
 ------------- observers ------------------------- 
-vprob :: Eq a => F a -> a -> Probability -- ^ probability of seeing a value
-prob :: Eq a => (a -> Bool) -> F a -> Probability 
- -- ^ probability of seeing a value that matches the given predicate
-expected :: (a -> Double) -> F a -> Double
- -- ^ the expected value of the given function
-fsupport :: F a -> [a]
- -- ^ list including every value of type a that has nonzero probability
+
 
 byLikelihood :: Ord a => F a -> [(Probability, a)]
   -- ^ list of all possibilities ordered by decreasing probabilities.
@@ -49,40 +37,44 @@ module Infer where
 import Data.List
 
 -- Modifying this from Jayme's code
-type Probability = Float
+type Probability = Double
 
 -- Formal representation of Probability distribution
--- Taken directly from Karl's code
-data P a = P [(a, Probability)] deriving( Show, Eq )
+-- Modified from Karl/Jayme's code
+data P a = Dist [(a, Probability)] deriving( Show, Eq )
 
 ----------------- Constructors ---------------------
 certainly :: a -> P a
-certainly xs = P [(xs, 1.0)]
+certainly xs = Dist [(xs, 1.0)]
 
 equally :: [a] -> P a
 equally xs = 
-  P (zip xs (replicate 
-             (length xs) 
-             ((/) 1.0 (realToFrac (length xs)))))
+  Dist (zip xs (replicate 
+                (length xs) 
+                ((/) 1.0 (realToFrac (length xs)))))
 
-normweighted :: (Real w) => [(w, a)] -> P a
+normWeighted :: (Real w) => [(w, a)] -> P a
 -- ^ Takes a weighted combination of 'a' and produces a
 -- normalized probability distribution based on the weights
-normweighted xs = 
+normWeighted xs = 
     let denom = realToFrac $ sum (map fst xs)
         probs = map (/ denom) (map realToFrac (map fst xs))
         as = map snd xs
     in 
-      P (zip as probs)
+      Dist (zip as probs)
+
+------------ transformers -----------------------
+--pmap :: (a -> b) -> P a -> P b
+--pmap f a = P (map f (P a))
 
 --------------- Observers --------------------------
 outcomeProb :: (Eq a) => P a -> a -> Probability 
 -- ^ probability of an outcome from the distribution on 'a'
 -- Currently O(n) access time
 -- can probably use a hash table to get O(1) access time
-outcomeProb (P dist) out = checkNil (P dist)
-    where checkNil (P []) = 0
-          checkNil (P (y:_)) = 
+outcomeProb (Dist dist) out = checkNil (Dist dist)
+    where checkNil (Dist []) = 0
+          checkNil (Dist (y:_)) = 
               let a = [x | x <- dist, (fst x) == out]
               in 
                 -- In case outcome is not in the set
@@ -90,11 +82,19 @@ outcomeProb (P dist) out = checkNil (P dist)
                           (y:_) -> snd $ head a
     
 eventProb :: (Eq a) => (a -> Bool) -> P a -> Probability 
--- ^ probability of an Event, which matches the given
--- predicate
-eventProb pred (P dist) = checkNil (P dist)
-    where checkNil (P []) = 0
-          checkNil (P (y:_)) = sum [snd x | x <- dist, pred (fst x)]
+-- ^ probability of an Event, which matches the given predicate
+eventProb pred (Dist dist) = checkNil (Dist dist)
+    where checkNil (Dist []) = 0
+          checkNil (Dist (y:_)) = sum [snd x | x <- dist, pred (fst x)]
+
+--support :: P a -> [a]
+-- ^ list including every value of type a that has nonzero probability          
+
+expected :: (a -> Double) -> P a -> Double
+-- ^ the expected value of the given function
+expected f (Dist dist) = 
+    sum (zipWith (*) (map f (map fst dist))
+                     (map snd dist))
 
 {-
 -- Part (B)

@@ -8,7 +8,7 @@ main = do
              (17, equally [1..12]), (17, equally [1..20])]
 
   -- Now we turn this representation into a probability dist
-  let bagDist = normweighted bag
+  let bagDist = normWeighted bag
   --print bagDist
   let d0 = equally [1..6]
   print d0
@@ -18,3 +18,5 @@ main = do
   print o1
   let e1 = eventProb (> 11) d0
   print e1
+  let exp1 = expected (\x -> x) d0
+  print exp1
