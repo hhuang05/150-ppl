@@ -63,9 +63,10 @@ normWeighted xs =
     in 
       Dist (zip as probs)
 
------------- transformers -----------------------
---pmap :: (a -> b) -> P a -> P b
---pmap f a = P (map f (P a))
+--------------- Transformers -----------------------
+pmap :: (a -> b) -> P a -> P b
+pmap f (Dist dist1) = 
+    Dist (zip (map f (map fst dist1)) (map snd dist1))
 
 --------------- Observers --------------------------
 outcomeProb :: (Eq a) => P a -> a -> Probability 
@@ -87,8 +88,9 @@ eventProb pred (Dist dist) = checkNil (Dist dist)
     where checkNil (Dist []) = 0
           checkNil (Dist (y:_)) = sum [snd x | x <- dist, pred (fst x)]
 
---support :: P a -> [a]
+support :: P a -> [a]
 -- ^ list including every value of type a that has nonzero probability          
+support (Dist dist) = map fst dist
 
 expected :: (a -> Double) -> P a -> Double
 -- ^ the expected value of the given function

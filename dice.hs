@@ -20,3 +20,7 @@ main = do
   print e1
   let exp1 = expected (\x -> x) d0
   print exp1
+  let sup = support bagDist
+  print sup
+  let d2 = pmap (\x -> (x * 3.14)) d0
+  print d2
