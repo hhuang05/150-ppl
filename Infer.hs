@@ -82,13 +82,25 @@ pmap :: (a -> b) -> P a -> P b
 pmap f (Dist dist1) = 
     Dist (zip (map f (map fst dist1)) (map snd dist1))
 
+pmap' :: (LogProb -> LogProb) -> P a -> P a
+pmap' f (Dist dist1) = 
+    Dist (zip (map fst dist1) (map f (map snd dist1)))
+
 pfilter :: (a -> Bool) -> P a -> P a 
 -- ^ conditional probability
 pfilter pred (Dist dist) = Dist [ (x,px) | (x,px) <- dist, pred x]    
 
 pfoldl :: (LogProb -> LogProb -> LogProb) -> Double -> P a -> LogProb
-pfoldl f i (Dist dist) = foldl f i (map decodeProb (map snd dist))
+pfoldl f i (Dist dist) = codeProb (foldl f i (map decodeProb (map snd dist)))
 
+{- TODO
+regroup :: Eq a => P a -> [[(a, LogProb)]]
+regroup (Dist dist) = 
+    let uniq = [ x | x <- nub (map fst dist) ]
+        a = [ filter (\(x,y) -> ((==) x u)) dist | u <- uniq]
+    in
+      a
+-}
 --------------- Combining Forms  -------------------
 
 allpairs :: (a, LogProb) -> (LogProb -> LogProb)-> P b -> [((a,b),LogProb)]
@@ -111,6 +123,10 @@ bindx (Dist dist1) f =
 join :: P a -> P a -> P (a,a)
 -- ^ Combining distributions over the same type into a joint distribution
 join (Dist xs) (Dist ys) = Dist [ ((x,y),px+py)  | (x,px) <- xs, (y,py) <- ys]
+
+joinCond :: P (a,b) -> P b -> P a
+-- ^ Given a distribution P(M|d) and P(d), combining them to create P(M) 
+joinCond (Dist condJoint) (Dist dist) 
 
 
 collapseLeft :: Eq b => P (a,b) -> P b 
