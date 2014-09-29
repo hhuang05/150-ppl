@@ -49,7 +49,7 @@ decodeProb lp = exp lp
 
 -- Formal representation of Probability distribution
 -- Modified from Karl/Jayme's code
-data P a = Dist [(a, LogProb)] deriving( Show, Eq )
+data P a = Dist [(a, LogProb)] deriving( Eq, Show )
 
 -- Must have operational procedure that Distributions can only be 
 -- combined using summation, not multiplication since it is the Log
@@ -82,25 +82,65 @@ pmap :: (a -> b) -> P a -> P b
 pmap f (Dist dist1) = 
     Dist (zip (map f (map fst dist1)) (map snd dist1))
 
-
 pfilter :: (a -> Bool) -> P a -> P a 
--- ^ conditional probability, renormalized to sum to 1
-pfilter pred (Dist dist) = normWeighted [ xs | xs <- dist, pred (fst xs) ]
+-- ^ conditional probability
+pfilter pred (Dist dist) = Dist [ (x,px) | (x,px) <- dist, pred x]    
+
+pfoldl :: (LogProb -> LogProb -> LogProb) -> Double -> P a -> LogProb
+pfoldl f i (Dist dist) = foldl f i (map decodeProb (map snd dist))
 
 --------------- Combining Forms  -------------------
-bindx :: P a -> (a -> P b) -> [Probability] -- P (a,b)
+
+allpairs :: (a, LogProb) -> (LogProb -> LogProb)-> P b -> [((a,b),LogProb)]
+-- ^ Instead of doing bindx in one step, splitting this into a helper function
+-- which can generate all pairs
+allpairs pair f (Dist y) = 
+    let probs = snd (unzip y)
+    in
+      zip [ (fst pair, ys) | ys <- support (Dist y) ] 
+              (map f probs)
+
+bindx :: P a -> (a -> P b) -> P (a,b)
 -- ^ `bindx d k` produces a joint distribution of a's and b's where
 -- the distribution of b's for any given a is given by `k a`
 bindx (Dist dist1) f = 
-    let --combo = pmap f (Dist dist1)     -- Joint
-        -- combo :: P (P b)
-        -- alist = map fst dist1
-        probs = map snd dist1
+    let list = concat [ allpairs x (+ (snd x)) (f (fst x)) | x <- dist1]
     in
-      probs
--- collapse
+      Dist list
+
+join :: P a -> P a -> P (a,a)
+-- ^ Combining distributions over the same type into a joint distribution
+join (Dist xs) (Dist ys) = Dist [ ((x,y),px+py)  | (x,px) <- xs, (y,py) <- ys]
 
 
+collapseLeft :: Eq b => P (a,b) -> P b 
+-- ^ generates the marginal distribution of b from a joint distribution
+-- of (a,b)
+collapseLeft (Dist dist) = 
+    let uniqb = nub (map snd (map fst dist))
+        probs = map 
+                (\y -> (sum 
+                        (map decodeProb 
+                         (map snd 
+                          [ x | x <- dist , snd (fst x) == y ])))) 
+                uniqb
+    in
+      Dist (zip uniqb (map codeProb probs))
+
+
+collapseRight :: Eq a => P (a,b) -> P a
+-- ^ generates the marginal distribution of a from a joint distribution
+-- of (a,b)
+collapseRight (Dist dist) = 
+    let uniqb = nub (map fst (map fst dist))
+        probs = map 
+                (\y -> (sum 
+                        (map decodeProb 
+                         (map snd 
+                          [ x | x <- dist , fst (fst x) == y ])))) 
+                uniqb
+    in
+      Dist (zip uniqb (map codeProb probs))
 
 --------------- Observers --------------------------
 outcomeProb :: (Eq a) => P a -> a -> Probability 
@@ -121,7 +161,7 @@ eventProb :: (Eq a) => (a -> Bool) -> P a -> Probability
 eventProb pred (Dist dist) = checkNil (Dist dist)
     where checkNil (Dist []) = 0
           checkNil (Dist (y:_)) = 
-              sum [decodeProb (snd x) | x <- dist, pred (fst x)]
+              sum [snd x | x <- dist, pred (fst x)]
 
 support :: P a -> [a]
 -- ^ list including every value of type a that has nonzero probability          
