@@ -124,10 +124,11 @@ join :: P a -> P a -> P (a,a)
 -- ^ Combining distributions over the same type into a joint distribution
 join (Dist xs) (Dist ys) = Dist [ ((x,y),px+py)  | (x,px) <- xs, (y,py) <- ys]
 
+{- TODO
 joinCond :: P (a,b) -> P b -> P a
 -- ^ Given a distribution P(M|d) and P(d), combining them to create P(M) 
 joinCond (Dist condJoint) (Dist dist) 
-
+-}
 
 collapseLeft :: Eq b => P (a,b) -> P b 
 -- ^ generates the marginal distribution of b from a joint distribution
