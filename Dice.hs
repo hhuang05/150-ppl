@@ -35,6 +35,24 @@ dieDist D10 = equally [0..9]
 dieDist D12 = equally [1..12]
 dieDist D20 = equally [1..20]
 
+-- ************** Shortcuts for commonly used functions *****
+psum :: P a -> Probability
+psum dist = pfoldl (+) 0 dist
+
+plogsum :: P a -> Probability
+plogsum dist = decodeProb (plogfoldl (+) 0 dist)
+
+decodeDist :: P a -> P a
+decodeDist dist = pmap' decodeProb dist
+
+codeDist :: P a -> P a
+codeDist dist = pmap' codeProb dist
+
+renorm :: P a -> LogProb -> P a
+-- ^ Renormalize the space such that the probabilities sum to 1
+-- Assumes probability distributions are in log space
+renorm dist d = pmap' (\x -> (x - d)) dist
+-- **************************************************
 
 twoDieProb :: P Die -> Die -> Die -> ((Integer,Integer) -> Bool)
              -> Probability
@@ -44,17 +62,16 @@ twoDieProb dist d1 d2 f =
     let p1 = outcomeProb dist d1
         p2 = outcomeProb dist d2
         pjoin = join (dieDist d1) (dieDist d2)
-        filtered = pfilter f pjoin
-        sumProb = decodeProb (plogfoldl (+) 0 filtered)
+        sumProb = plogsum (pfilter f pjoin)
     in
       p1*p2*sumProb
 
 -- ***************************************************
 
 diceTripleDist :: P Die -> P DieTriple
-diceTripleDist dist = regroup (equally [ (DieTriple d1 d2 d3) | d1 <- uniq, d2 <- uniq, d3 <- uniq])
-    where
-      uniq = support dist
+diceTripleDist (Dist dist) = 
+    regroup (Dist [ ((DieTriple d1 d2 d3),p1+p2+p3) | 
+                    (d1,p1) <- dist, (d2,p2) <- dist, (d3,p3) <- dist] )
 
 dieTripleToThrowHelper :: DieTriple -> P ThrowSet
 dieTripleToThrowHelper (DieTriple d1 d2 d3) = 
@@ -66,9 +83,15 @@ dieTripleToThrowHelper (DieTriple d1 d2 d3) =
                                      (t1,p1) <- dist1, (t2,p2) <- dist2, 
                                      (t3,p3) <- dist3])
 
+condThrowSet' :: P (DieTriple, ThrowSet) -> P (DieTriple, ThrowSet)
+condThrowSet' dist = 
+    pfilter (\(x,y) -> (isMul4 y)) 
+                (pfilter (\(x,y) -> (isEleven y)) 
+                 (pfilter (\(x,y) -> (isSeven y)) dist))
+
 condThrowSet :: P ThrowSet -> P ThrowSet
 condThrowSet dist = 
-    pfilter isMul4 (pfilter isEleven (pfilter isSeven dist))
+    pfilter isMul4 (pfilter isEleven (pfilter isSeven  dist))
 
 isSeven :: ThrowSet -> Bool
 isSeven (ThrowSet 7 y z) = True
@@ -96,8 +119,24 @@ isD8 (DieTriple x y z)
     | z == D8 = True
     | otherwise = False
 
+-- ********** Solutions to the problems ******************
+
 partD :: P Die -> Probability
 partD diceDist = 
     ((+) (twoDieProb diceDist D6 D12 (\(x,y) -> (x+y == 11)))
          (twoDieProb diceDist D12 D6 (\(x,y) -> (x+y == 11))))
-  
+
+{- 
+   You draw three dice from the standard bag, throw them, 
+   and you see a 7, an 11, and a multiple of 4.  
+   What is the probability that at least one of the dice is a d8? 
+ -}  
+q1New :: P Die -> Probability
+q1New diceDist = 
+    let diceJoint = diceTripleDist diceDist      
+        fullJoint = bindx diceJoint 
+                    (\x -> (condThrowSet (dieTripleToThrowHelper x)))
+        marginal = collapseRight fullJoint 
+        conditional = pfilter isD8 (renorm marginal (codeProb (plogsum marginal)))
+    in
+      plogsum conditional
