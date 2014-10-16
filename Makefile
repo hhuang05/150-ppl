@@ -1,9 +1,9 @@
 
-all: dice
+all: problems
 
-dice: dice.hs Infer.hs
-	ghc -XPackageImports --make dice.hs
+problems: problems.hs Dice.hs Infer.hs Tally.hs 
+	ghc -XPackageImports --make problems.hs
 
-clean: dice
-	rm -f *.hi *.o dice
+clean: 
+	rm -f *.hi *.o problems 
 

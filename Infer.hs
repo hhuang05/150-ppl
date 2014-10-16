@@ -66,6 +66,15 @@ equally xs =
                          (length xs) 
                          ((/) 1.0 (realToFrac (length xs))))))
 
+weighted :: (Real w) => [(a, w)] -> P a
+-- ^ Takes a weighted combination of 'a' and produces a
+-- probability distribution based on the weights
+weighted xs = 
+    let probs = map codeProb (map realToFrac (map snd xs))
+        as = map fst xs
+    in 
+      Dist (zip as probs)
+
 normWeighted :: (Real w) => [(a, w)] -> P a
 -- ^ Takes a weighted combination of 'a' and produces a
 -- normalized probability distribution based on the weights
@@ -82,6 +91,7 @@ pmap :: (a -> b) -> P a -> P b
 pmap f (Dist dist1) = 
     Dist (zip (map f (map fst dist1)) (map snd dist1))
 
+
 pmap' :: (LogProb -> LogProb) -> P a -> P a
 pmap' f (Dist dist1) = 
     Dist (zip (map fst dist1) (map f (map snd dist1)))
@@ -90,45 +100,47 @@ pfilter :: (a -> Bool) -> P a -> P a
 -- ^ conditional probability
 pfilter pred (Dist dist) = Dist [ (x,px) | (x,px) <- dist, pred x]    
 
-pfoldl :: (LogProb -> LogProb -> LogProb) -> Double -> P a -> LogProb
-pfoldl f i (Dist dist) = codeProb (foldl f i (map decodeProb (map snd dist)))
+plogfoldl :: (LogProb -> LogProb -> LogProb) -> Double -> P a -> LogProb
+plogfoldl f i (Dist dist) = codeProb (foldl f i (map decodeProb (map snd dist)))
 
-{- TODO
-regroup :: Eq a => P a -> [[(a, LogProb)]]
-regroup (Dist dist) = 
-    let uniq = [ x | x <- nub (map fst dist) ]
-        a = [ filter (\(x,y) -> ((==) x u)) dist | u <- uniq]
-    in
-      a
--}
+pfoldl :: (Probability -> Probability -> Probability) -> Double -> P a -> Probability
+pfoldl f i (Dist dist) = foldl f i (map snd dist)
+            
+regroup :: Eq a => P a -> P a
+-- ^Groups all the same combinations then compresses the space
+regroup dist = pmap' codeProb (Dist (regroupHelper dist))
+    where
+      regroupHelper :: Eq a => P a -> [(a,LogProb)]
+      regroupHelper (Dist []) = []
+      regroupHelper (Dist dist) = 
+          let eqlist = map fst dist
+              items = pmap' decodeProb (pfilter (\x -> (head eqlist) == x) (Dist dist))
+              -- Stuff left over
+              leftOver = pfilter (\x -> (head eqlist) /= x) (Dist dist)
+          in
+            [(head (support items), (pfoldl (+) 0 items))] ++ (regroupHelper leftOver)
+
 --------------- Combining Forms  -------------------
-
-allpairs :: (a, LogProb) -> (LogProb -> LogProb)-> P b -> [((a,b),LogProb)]
--- ^ Instead of doing bindx in one step, splitting this into a helper function
--- which can generate all pairs
-allpairs pair f (Dist y) = 
-    let probs = snd (unzip y)
-    in
-      zip [ (fst pair, ys) | ys <- support (Dist y) ] 
-              (map f probs)
 
 bindx :: P a -> (a -> P b) -> P (a,b)
 -- ^ `bindx d k` produces a joint distribution of a's and b's where
 -- the distribution of b's for any given a is given by `k a`
 bindx (Dist dist1) f = 
-    let list = concat [ allpairs x (+ (snd x)) (f (fst x)) | x <- dist1]
-    in
-      Dist list
+    Dist (concat [ allpairs x (+ (snd x)) (f (fst x)) | x <- dist1])
+        where 
+          allpairs :: (a, LogProb) -> (LogProb -> LogProb)-> P b -> [((a,b),LogProb)]
+          -- ^ Instead of doing bindx in one step, splitting this into a helper function
+          -- which can generate all pairs
+          allpairs pair f (Dist y) = 
+              let probs = snd (unzip y)
+              in
+                zip [ (fst pair, ys) | ys <- support (Dist y) ] 
+                        (map f probs)
 
 join :: P a -> P a -> P (a,a)
 -- ^ Combining distributions over the same type into a joint distribution
-join (Dist xs) (Dist ys) = Dist [ ((x,y),px+py)  | (x,px) <- xs, (y,py) <- ys]
-
-{- TODO
-joinCond :: P (a,b) -> P b -> P a
--- ^ Given a distribution P(M|d) and P(d), combining them to create P(M) 
-joinCond (Dist condJoint) (Dist dist) 
--}
+join (Dist xs) (Dist ys) =
+    Dist [ ((x,y),px+py)  | (x,px) <- xs, (y,py) <- ys]
 
 collapseLeft :: Eq b => P (a,b) -> P b 
 -- ^ generates the marginal distribution of b from a joint distribution
@@ -189,3 +201,10 @@ expected :: (a -> Double) -> P a -> Double
 expected f (Dist dist) = 
     sum (zipWith (*) (map f (map fst dist))
                      (map decodeProb (map snd dist)))
+
+combo :: Integer -> Integer -> Integer
+-- ^ Cheating to use combinatorics
+combo n 0 = 1
+combo 0 k = 0
+combo n k = combo (n-1) (k-1) * n `div` k
+    
