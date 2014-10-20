@@ -1,6 +1,7 @@
 import Infer
 import Dice
 import Tally
+import Gamble
 import Text.Printf
 
 main = do
@@ -16,6 +17,7 @@ main = do
 
   printf "Part G: Expected value of the right column: %f\n" (partG diceDist)
 
+  print (partH diceDist)
   --printf "New Question 1: Given we take three dice from the bag, rolling them, we observe a 7, 11 an a multiple of 4. Probability of at least one of the dice is a D8: %f\n" (q1New diceDist)
 
   

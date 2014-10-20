@@ -12,6 +12,9 @@ data DiePair = DiePair Die Die deriving (Show)
 instance Eq DiePair where 
     DiePair d1 d2 == DiePair d3 d4 = 
         (d1 == d3 && d2 == d4) || (d1 == d4 && d2 == d3)
+
+instance Ord DiePair where
+    DiePair d1 d2 <= DiePair d3 d4 = (d1 <= d3 && d2 <= d4) 
  
 instance Eq DieTriple where 
     DieTriple d1 d2 d3 == DieTriple d4 d5 d6 

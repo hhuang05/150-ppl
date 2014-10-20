@@ -19,10 +19,7 @@ pfilterMap f = pmap fromJust . pfilter isJust . pmap f
 ------------- observers ------------------------- 
 
 
-byLikelihood :: Ord a => F a -> [(Probability, a)]
-  -- ^ list of all possibilities ordered by decreasing probabilities.
-  -- No value of type a appears more than once in the list.
- 
+
 -- variance is left as an exercise for the reader
 ----------- Algebraic laws ------------------------
 choose_weight_law :: Eq a => Probability -> a -> a -> Bool
@@ -50,6 +47,11 @@ decodeProb lp = exp lp
 -- Formal representation of Probability distribution
 -- Modified from Karl/Jayme's code
 data P a = Dist [(a, LogProb)] deriving( Eq, Show )
+
+sortDESC (a1, b1) (a2, b2)
+  | b1 < b2 = GT
+  | b1 > b2 = LT
+  | b1 == b2 = compare a1 a2
 
 -- Must have operational procedure that Distributions can only be 
 -- combined using summation, not multiplication since it is the Log
@@ -202,9 +204,9 @@ expected f (Dist dist) =
     sum (zipWith (*) (map f (map fst dist))
                      (map decodeProb (map snd dist)))
 
-combo :: Integer -> Integer -> Integer
--- ^ Cheating to use combinatorics
-combo n 0 = 1
-combo 0 k = 0
-combo n k = combo (n-1) (k-1) * n `div` k
-    
+byLikelihood :: Ord a => P a -> [(a, Probability)]
+-- ^ list of all possibilities ordered by decreasing probabilities.
+-- No value of type a appears more than once in the list.
+byLikelihood (Dist dist) = 
+    sortBy sortDESC (map (\(x,y) -> (x, decodeProb y)) dist)
+ 
