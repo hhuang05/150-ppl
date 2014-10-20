@@ -1,44 +1,60 @@
 module Tally where
 import Infer
 import Dice
+import Data.List
 
-data Tally = Tally { left :: Integer, right :: Integer } deriving (Show,Eq)
-data DiePair = DiePair (Die,Die) deriving (Show)
+data Column = LEFT | RIGHT deriving(Show,Eq,Ord)
+type Trials = [Column]
+data Tally = Tally { left :: Int, right :: Int } deriving (Show)
 
-instance Eq DiePair where 
-    DiePair (d1, d2) == DiePair (d3, d4) = (d1 == d3 && d2 == d4) || (d1 == d4 && d2 == d3)
+instance Eq Tally where 
+    Tally t1 t2 == Tally t3 t4 = 
+        (t1 == t3 && t2 == t4) 
 
-tallyCount :: Tally -> Integer
--- ^ We need the total number of possible tallies for a given
--- spread of left and right
-tallyCount (Tally left right) = combo (left+right) right
 
-tallyDist :: Integer -> [(Tally, Integer)]
--- ^ Now using the counts we generate a distribution
--- We'll always start with right = 0 and increase right
-tallyDist total = (tallyDistHelper total 0)
-    where
-      tallyDistHelper :: Integer -> Integer -> [(Tally, Integer)]
-      tallyDistHelper 0 right = [((Tally 0 right), 1)]
-      tallyDistHelper left right = 
-          let t = Tally left right
-          in 
-            [(t, (tallyCount t))] ++ (tallyDistHelper (left-1) (right+1))
+sumSpace :: DiePair -> P Integer
+-- ^ Computes the probability distribution of a pair of dice
+-- as the prob dist of its sum
+sumSpace (DiePair d1 d2) =
+    regroup 
+    (pmap (\(x,y) -> (x+y)) (join (dieDist d1) (dieDist d2)))
 
-leftMarkDist :: P Die -> P DiePair
--- ^ Generates a distribution of marks, either the left or 
--- the right given two dice
-leftMarkDist distDie = 
-    regroup (weighted [(DiePair (a,b),
-                       twoDieProb distDie a b (\(x,y) -> (x+y<=7)) ) | a <- dice, b <- dice ])
-    where 
-      dice = support (regroup distDie)
+sumToCol :: Integer -> Column  
+sumToCol s 
+    | s <= 7 = LEFT
+    | otherwise = RIGHT
 
-rightMarkDist :: P Die -> P DiePair
--- ^ Generates a distribution of marks, either the left or 
--- the right given two dice
-rightMarkDist distDie = 
-    regroup (weighted [(DiePair (a,b),
-                       twoDieProb distDie a b (\(x,y) -> (x+y>=8)) ) | a <- dice, b <- dice ])
-    where 
-      dice = support (regroup distDie)
+sumToColDist :: P Integer -> P Column
+sumToColDist sumDist = regroup (pmap sumToCol sumDist)
+
+colToTrials :: P Column -> P Trials
+colToTrials cols = pmap (\x -> (x:[])) cols
+
+compressTrials :: P (Trials,Trials) -> P Trials
+compressTrials trials = regroup (pmap (\(x,y) -> sort (x ++ y)) trials)
+
+trialsToTally :: Trials -> Tally
+trialsToTally t = Tally
+                  (length (filter (\x -> ((==) LEFT x)) t))
+                  (length (filter (\x -> ((==) RIGHT x)) t))
+                 
+colToNTrials :: P Column -> Int -> P Trials
+colToNTrials cols n
+    | n == 1 = colToTrials cols
+    | otherwise =
+        compressTrials (join (colToTrials cols) 
+                        (colToNTrials cols (n - 1)))
+
+diePairToTally :: DiePair -> P Tally
+diePairToTally pair = 
+    let colDist = sumToColDist (sumSpace pair)
+        trialsDist = colToNTrials colDist 30
+    in 
+      pmap trialsToTally trialsDist 
+
+partF :: P Die -> Probability
+partF diceDist = 
+    let pairDist = dicePairDist diceDist        
+        fullJoint = bindx pairDist diePairToTally
+    in
+        outcomeProb fullJoint (DiePair D4 D4, Tally 27 3)

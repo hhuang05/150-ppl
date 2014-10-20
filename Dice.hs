@@ -7,6 +7,11 @@ import Data.Tuple
 data Die = D4 | D6 | D8 | D10 | D12 | D20 deriving (Show,Eq,Ord)
 data DieTriple = DieTriple Die Die Die deriving(Show)
 data ThrowSet = ThrowSet Integer Integer Integer deriving(Show) 
+data DiePair = DiePair Die Die deriving (Show)
+
+instance Eq DiePair where 
+    DiePair d1 d2 == DiePair d3 d4 = 
+        (d1 == d3 && d2 == d4) || (d1 == d4 && d2 == d3)
  
 instance Eq DieTriple where 
     DieTriple d1 d2 d3 == DieTriple d4 d5 d6 
@@ -67,6 +72,10 @@ twoDieProb dist d1 d2 f =
       p1*p2*sumProb
 
 -- ***************************************************
+
+dicePairDist :: P Die -> P DiePair
+dicePairDist dist = 
+    regroup (pmap (\(x,y) -> (DiePair x y)) (join dist dist))
 
 diceTripleDist :: P Die -> P DieTriple
 diceTripleDist (Dist dist) = 
