@@ -58,3 +58,11 @@ partF diceDist =
         fullJoint = bindx pairDist diePairToTally
     in
         outcomeProb fullJoint (DiePair D4 D4, Tally 27 3)
+
+partG :: P Die -> Double
+partG diceDist = 
+    let pairDist = dicePairDist diceDist        
+        fullJoint = bindx pairDist diePairToTally
+        marginalTally = collapseLeft fullJoint
+    in
+      expected (\(Tally x y) -> realToFrac y) marginalTally
