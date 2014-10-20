@@ -1,6 +1,4 @@
 *.o
 *.hi
-dice
-gamble
-hello
-tally
+*~
+problems
